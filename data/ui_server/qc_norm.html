@@ -1,0 +1,269 @@
+﻿<!DOCTYPE html>
+<html>
+    <head>
+        <title>Quality Control Prototype</title>
+	    <meta charset="utf-8" />
+        <script src="js/jquery-2.2.3.js"></script>
+        <script src="js/bootstrap.js"></script>
+        <script src="js/d3.js"></script>
+        <script src="js/qc_normHelper.js"></script>
+        <script src="js/qc_normDrawPlate.js"></script>
+        <script src="js/qc_normDrawCurves.js"></script>
+        <script src="js/qc_normAPIHelper.js"></script>
+        <script src="js/jquery.treetable.js"></script>
+
+        <link href="style/qc_norm.css" rel="stylesheet"/>
+        <link href="style/bootstrap.css" rel="stylesheet"/>
+        <link href="style/main.css" rel="stylesheet"/>
+        <link href="style/jquery.treetable.css" rel="stylesheet" />
+        <link href="style/jquery.treetable.theme.default.css" rel="stylesheet" />
+
+    </head>
+    <body>
+        <script>
+            $(document).ready(function() {
+                var isDebug;
+                if (document.location.hostname == "localhost")
+                    isDebug = true;
+                else
+                    isDebug = false;
+
+                function projectSlelectionStage(level)
+                {
+                    switch (level) {
+                    case "project":
+                        $(".loPhenotypeSelection").hide();
+                        $(".loPlateSelection").hide();
+                        $("#tbProjectDetails").hide();
+                        break;
+                    case "Phenotypes":
+                        $(".loPhenotypeSelection").show();
+                        break;
+                    case "Plates":
+                        $(".loPlateSelection").show();
+                        d3.select("#selPhenotypePlates").remove();
+                        break;
+                    default:
+                    }
+                }
+
+                //draw Project selection
+                BrowseProjectsRoot(isDebug, function (browseData) {
+                    projectSlelectionStage("project");
+                    var selProjects = d3.select("#divProjectsSelector").append("table").attr("id", "tblProjects");
+                    $(browseData).each(function(idx, elem) {
+                        selProjects.append("tr").attr("data-tt-id", elem.url).attr("data-tt-branch", true).append("td").text(elem.name);
+                    });
+                    $("#tblProjects").treetable({
+                        expandable: true,
+                        onNodeExpand: nodeExpand
+                    });
+                    if (isDebug) {
+                        nodeExpand();
+                    }
+                });
+
+                function nodeExpand() {
+                    var parentId = this.id;
+                    BrowsePath(isDebug, parentId, function (browse) {
+                        console.log("ParentID:" + parentId);
+                        console.log("is project:" + browse.isProject);
+                        console.log("paths len:" + browse.paths.length);
+                        var parentNode = $("#tblProjects").treetable("node", parentId);
+                        var nodeToAdd;
+                        var row;
+                        if (!browse.isProject && browse.paths.length === 0) {
+                            nodeToAdd = $("#tblProjects").treetable("node", "empty" + parentId);
+                            if (!nodeToAdd) {
+                                row = '<tr data-tt-id="empty' + parentId + '" data-tt-parent-id="' + parentId + '" >';
+                                row += "<td><span class='file'>This project is Empty ...</span></td>";
+                                row += "</tr>";
+                                $("#tblProjects").treetable("loadBranch", parentNode, row);
+                            }
+                        }
+                        else if (!browse.isProject) {
+                            var rows="";
+                            $.each( browse.paths, function (key, value) {
+                                row = '<tr data-tt-id="ch' + value.url + '" data-tt-parent-id="' + parentId + '" data-tt-branch="true" >';
+                                row += "<td>" + value.name + "</td>";
+                                row += "</tr>";
+                                rows += row;
+                            });
+                            $("#tblProjects").treetable("loadBranch", parentNode, rows);
+                            console.log("addedNodes rows:"+rows);
+                        }
+                        else if (browse.isProject) {
+                            nodeToAdd = $("#tblProjects").treetable("node", "project" + parentId);
+                            if (!nodeToAdd) {
+                                row = '<tr data-tt-id="project' + parentId + '" data-tt-parent-id="' + parentId + '"  >';
+                                console.log("button id: " + browse.projectDetails);
+                                row += "<td><button id='" + browse.projectDetails.project + "'>Here is your project</button></td>";
+                                row += "</tr>";
+                                $("#tblProjects").treetable("loadBranch", parentNode, row);
+                                var btn = $(document.getElementById(browse.projectDetails.project));
+                                btn.on("click", function () { fillProjectDetails(browse.projectDetails); });
+                                btn.attr("class", "attached");
+                                if (isDebug) fillProjectDetails(browse.projectDetails);
+                            }
+                        }
+                    });
+                    console.log("Expanded: " + this.id);
+                }
+
+                function fillProjectDetails(projectDetails) {
+                    console.log("Project details:" + projectDetails.project);
+                    $("#spProject_name").text(projectDetails.project_name);
+                    $("#spProject").text(projectDetails.project);
+                    $("#spExtraction_date").text(projectDetails.extraction_date);
+                    $("#spAnalysis_date").text(projectDetails.analysis_date);
+                    $("#spAnalysis_instructions").text(projectDetails.analysis_instructions);
+                    $("#tbProjectDetails").show();
+                    if (!isDebug) $("#btnBrowseProject").click();
+                    drawRunPhenotypeSelection(projectDetails.phenotype_names);
+                }
+
+                //draw run phenotypes selection
+                function drawRunPhenotypeSelection(path) {
+                    projectSlelectionStage("Phenotypes");
+                    console.log("Phenotypes path: " + path);
+                    GetRunPhenotypes(isDebug, path, function (runPhenotypes) {
+                        d3.select("#selRunPhenotypes").remove();
+                        var selPhen = d3.select("#divRunPhenotypesSelector").append("select").attr("id", "selRunPhenotypes");
+                        var options = selPhen.selectAll("optionPlaceholders").data(runPhenotypes).enter().append("option");
+                        options.attr("value", function (d) { return d.url; });
+                        options.text(function (d) { return d.name; });
+                        selPhen.on("change", drawPhenotypePlatesSelection);
+                        $("selRunPhenotypes").selectedIndex = 0;
+                        drawPhenotypePlatesSelection();
+                    });
+                };
+
+                //draw phenotypes plates selection
+                function drawPhenotypePlatesSelection() {
+                    var path = $("#selRunPhenotypes").val();
+                    projectSlelectionStage("Plates");
+                    console.log("plates: " + path);
+                    GetPhenotypesPlates(isDebug, path, function (phenotypePlates) {
+                        d3.selectAll(".plateSelectionButton").remove();
+                        var selPlates = d3.select("#divPhenotypePlatesSelecton");
+                        var buttons = selPlates.selectAll("buttonPlaceholders").data(phenotypePlates).enter().append("a");
+                        buttons.attr({
+                            "type": "button",
+                            "class": "btn btn-default plateSelectionButton",
+                            "id": function (d) { return "Plate" + d.index },
+                            "href":"#",
+                            "role":"button"
+                        });
+                        buttons.on("click", function (d) { drawPlate(d) });;
+                        buttons.text(function (d) { return "Plate " + (d.index + 1); });
+                        $("#Plate0").focus();
+                        document.getElementById("Plate0").click();
+                    });
+                };
+
+                //draw plate
+                function drawPlate(phenotypePlates) {
+                    var path = phenotypePlates.url;
+                    var plateIdx = phenotypePlates.index;
+                    var project = $("#spProject").text();
+                    console.log("experiment: " + path);
+                    // e.g. /api/results/phenotype/GenerationTimeWhen/1/by4742_h/analysis
+                    var metaDataPath = "/api/results/phenotype/###/" + plateIdx + "/" + project;
+                    GetPlateData(isDebug, path, metaDataPath, "###", function (data) {
+                        var plateData = data.plate_data;
+                        var plateMetaData = data.Plate_metadata;
+                        var growthMetaData = data.Growth_metaData;
+                        $("#plate").empty();
+                        var plate = DrawPlate("#plate", plateData, growthMetaData, plateMetaData);
+                        plate.on("SelectedExperiment", function (datah) {
+                            console.log("dispatched:" + datah.coord);
+                            var arr = datah.coord.split(",");
+                            var row = arr[0];
+                            var col = arr[1];
+                            // e.g. /api/results/curves/1/31/0/Martin_wt1/analysis
+                            var expPath = "/api/results/curves/" + plateIdx + "/" + row + "/" + col + "/" + project;
+                            console.log("curve path:" + expPath);
+                            GetExperimentGrowthData(isDebug, expPath, function (gData) {
+                                $("#graph").empty();
+                                DrawCurves("#graph", gData, datah.metaDataGt, datah.metaDataGtWhen, datah.metaDataYield);
+                            });
+                        });
+                    });
+                };
+            });
+        </script>
+
+        <div id="cont" class="container QCCont">
+            <h1>Quality Control</h1>
+            <h2>Data Selection</h2>
+            <div class="section-frame">
+                <div class="row">
+                    <div class="col-md-12 loProjectSelection " style="height: 100%; width: 100%">
+                        <div class="floating-box" style="width: 20%; horiz-align: center">
+                            <a id="btnBrowseProject" class="btn " role="button" data-toggle="collapse" href="#selectProject" aria-expanded="false" aria-controls="selectProject">
+                                <span class="glyphicon glyphicon-folder-open" aria-hidden="true"></span> Select a project
+                            </a>
+                        </div>
+                        <div class="floating-box" style="width: 75%">
+                            <div class="collapse" id="selectProject">
+                                <div id="divProjectsSelector" ></div>
+                            </div>
+                            <table id="tbProjectDetails">
+                                <tr>
+                                    <td>Name</td>
+                                    <td><span id="spProject_name"></span></td>
+                                </tr>
+                                <tr>
+                                    <td>Directory</td>
+                                    <td><span id="spProject"></span></td>
+                                </tr>
+                                <tr>
+                                    <td>Extraction Date</td>
+                                    <td><span id="spExtraction_date"></span></td>
+                                </tr>
+                                <tr>
+                                    <td>Analysis Date</td>
+                                    <td><span id="spAnalysis_date"></span></td>
+                                </tr>
+                                <tr style="visibility: collapse">
+                                    <td>Analysis Instructions</td>
+                                    <td><span id="spAnalysis_instructions"></span></td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12 loPhenotypeSelection">
+                        <div>Phenotype:</div>
+                        <div id="divRunPhenotypesSelector"></div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12 loPlateSelection">
+                        <div id="divPhenotypePlatesSelecton"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="section-frame">
+                <div class="row">
+                    <div class="col-md-7" >
+                        <h2>Plate</h2>
+                        <div id="plate"></div>
+                    </div>
+                    <div class="col-md-5">
+                        <h2 style="float: left">Graph</h2> <div id="sel" style="margin-top: 17px; padding-left: 20px"></div>    
+                        <div id="graph" ></div>
+                    </div>
+                </div>    
+            </div>
+            
+        </div>
+
+        <div id="text"></div>
+        
+        
+
+    </body>
+</html>

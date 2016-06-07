@@ -1,0 +1,106 @@
+﻿/* Data Selection*/
+
+.SelectedExperiment {
+    stroke: black;
+    stroke-width:2
+}
+
+.loProjectSelection,
+.loPhenotypeSelection,
+.loPlateSelection {
+    overflow: hidden;
+ }
+
+/*.loProjectSelection div,*/
+.loPhenotypeSelection div,
+.loPlateSelection div {
+    padding: 3px;
+}
+
+.loPlateSelection button {
+    margin: 5px;
+}
+
+.QCCont select{
+    color: black;
+}
+
+/*Plate HeatMap*/
+
+.PlateHeatMap {
+    border: 0px solid black;
+    background: #e7d2b7;
+    margin: 0px;
+}
+
+.HeatMapLegendAxis path   {
+    display: none;
+}
+
+div.tooltip {	
+    position: absolute;			
+    text-align: center;
+    width: 60px;					
+    height: 20px;					
+    padding: 2px;				
+    font: 12px sans-serif;
+    color: white;
+    background: black;	
+    border: 0px;		
+    border-radius: 3px;			
+    pointer-events: none;			
+}
+
+/*Growth chart*/
+.growthChart {
+    background: #e7d2b7;
+    margin: 0px;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  }
+
+.axis text {
+    font-family: sans-serif;
+    font-size: 8px;
+			}
+
+.series .raw {
+  fill: none;
+  stroke: red;
+  stroke-width: 2px;
+}
+
+.series .smooth {
+  fill: none;
+  stroke: black;
+  stroke-width: 2px;
+}
+
+/* Project Selection */
+.floating-box {
+    float: left;
+    margin: 0px 5px 0px 0px;
+}
+
+/* Project Selection tree */
+#tblProjects {
+    height: 100%;
+    width: 100%;
+}
+
+#tblProjects td {
+    color: black;
+}
+#tblProjects a {
+    background-color: transparent;
+}
+
+/* plates selection*/
+a.plateSelectionButton:focus
+{
+    background:olive;
+}
